@@ -1,5 +1,7 @@
+import heapq
+
+
 def dijkstra(graph, start):
-    import heapq
     distances = {node: float('inf') for node in graph}
     distances[start] = 0
     priority_queue = [(0, start)]
