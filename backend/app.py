@@ -2,7 +2,8 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import heapq
 import os
-
+from algorithms.dijkstra import dijkstra,generate_dijkstra_steps
+from algorithms.avl_tree import *
 app = Flask(__name__)
 CORS(app)
 def replace_infinity(data):
@@ -12,105 +13,6 @@ def replace_infinity(data):
     elif isinstance(data, list):
         return [replace_infinity(item) for item in data]
     return data
-
-def dijkstra(graph, start):
-    distances = {node: float('inf') for node in graph}
-    distances[start] = 0
-    priority_queue = [(0, start)]
-    
-    while priority_queue:
-        current_distance, current_node = heapq.heappop(priority_queue)
-
-        if current_distance > distances[current_node]:
-            continue
-
-        for neighbor, weight in graph[current_node].items():
-            distance = current_distance + weight
-            if distance < distances[neighbor]:
-                distances[neighbor] = distance
-                heapq.heappush(priority_queue, (distance, neighbor))
-    
-    return distances
-
-def generate_dijkstra_steps(graph, start):
-    distances = {node: float('inf') for node in graph}
-    distances[start] = 0
-    priority_queue = [(0, start)]
-    steps = []
-    visited = set()
-
-    # Initial step
-    steps.append({
-        'description': f'Initialize: Set distance to {start} as 0, others as infinity',
-        'currentNode': start,
-        'distances': distances.copy(),
-        'visited': list(visited),
-        'unvisited': list(graph.keys())
-    })
-
-    while priority_queue:
-        current_distance, current_node = heapq.heappop(priority_queue)
-
-        # Skip if we've found a longer path
-        if current_distance > distances[current_node]:
-            continue
-
-        visited.add(current_node)
-
-        # Step: Current node selection
-        steps.append({
-            'description': f'Select node {current_node} with minimum distance',
-            'currentNode': current_node,
-            'distances': distances.copy(),
-            'visited': list(visited),
-            'unvisited': list(set(graph.keys()) - visited)
-        })
-
-        # Examine neighbors
-        for neighbor, weight in graph[current_node].items():
-            if neighbor in visited:
-                continue
-
-            # Calculate potential new distance
-            potential_distance = current_distance + weight
-
-            # Step: Examine neighbor
-            steps.append({
-                'description': f'Examine neighbor {neighbor} from {current_node}',
-                'currentNode': current_node,
-                'neighbor': neighbor,
-                'currentDistance': distances[neighbor],
-                'potentialDistance': potential_distance,
-                'distances': distances.copy(),
-                'visited': list(visited),
-                'unvisited': list(set(graph.keys()) - visited)
-            })
-
-            # Update distance if shorter path found
-            if potential_distance < distances[neighbor]:
-                distances[neighbor] = potential_distance
-                heapq.heappush(priority_queue, (potential_distance, neighbor))
-
-                # Step: Distance update
-                steps.append({
-                    'description': f'Update distance to {neighbor}: {potential_distance}',
-                    'currentNode': current_node,
-                    'neighbor': neighbor,
-                    'newDistance': potential_distance,
-                    'distances': distances.copy(),
-                    'visited': list(visited),
-                    'unvisited': list(set(graph.keys()) - visited)
-                })
-
-    # Final step
-    steps.append({
-        'description': 'Algorithm completed',
-        'distances': distances.copy(),
-        'visited': list(visited),
-        'unvisited': []
-    })
-
-    return steps
 
 @app.route('/api/dijkstra', methods=['POST'])
 def run_dijkstra():
@@ -142,14 +44,28 @@ def run_dijkstra():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
     
+@app.route('/api/avl-tree', methods=['POST'])
+def run_avl_tree():
+    data = request.json
+    keys = data.get('keys', [])
+    try:
+        avl_tree = AVLTree()
+        steps = avl_tree.get_insertion_steps(keys)
+        return jsonify({
+            'steps': steps,
+            'finalTree': avl_tree.get_tree_structure()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400 
+      
 @app.route('/api/algorithms', methods=['GET'])
 def get_algorithms():
     algorithms = [
         {'id': 'dijkstra', 'name': 'Dijkstra\'s Algorithm'},
+        {'id': 'avl', 'name': 'AVLTree Algorithm'}
         # Add more algorithms here
     ]
     return jsonify(algorithms)
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0',debug=True)
