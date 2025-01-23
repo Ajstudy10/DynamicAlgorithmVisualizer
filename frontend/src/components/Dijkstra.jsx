@@ -5,7 +5,10 @@ import {
   PlusIcon, 
   PlayIcon, 
   RefreshIcon,
-  TrashIcon
+  TrashIcon,
+  SwitchHorizontalIcon,
+  ChevronRightIcon,
+  ChevronLeftIcon
 } from '@heroicons/react/solid';
 
 function DijkstraVisualizer() {
@@ -13,7 +16,9 @@ function DijkstraVisualizer() {
   const [graph, setGraph] = useState({});
   const [startNode, setStartNode] = useState('');
   const [result, setResult] = useState(null);
-  const [currentStep, setCurrentStep] = useState(0);
+  const [steps, setSteps] = useState([]);
+  const [currentStepIndex, setCurrentStepIndex] = useState(-1);
+  const [isDirected, setIsDirected] = useState(true);
 
   // Predefined set of nodes
   const availableNodes = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -44,15 +49,24 @@ function DijkstraVisualizer() {
   const addEdge = () => {
     const { fromNode, toNode, weight } = newEdge;
     if (fromNode && toNode && !isNaN(weight)) {
-      setGraph(prev => ({
-        ...prev,
-        [fromNode]: {
-          ...(prev[fromNode] || {}),
-          [toNode]: weight
-        },
-        // Ensure destination node exists
-        [toNode]: prev[toNode] || {}
-      }));
+      setGraph(prev => {
+        const updatedGraph = {...prev};
+        
+        // For directed graph, add edge only in one direction
+        if (isDirected) {
+          if (!updatedGraph[fromNode]) updatedGraph[fromNode] = {};
+          updatedGraph[fromNode][toNode] = weight;
+        } 
+        // For undirected graph, add edge in both directions
+        else {
+          if (!updatedGraph[fromNode]) updatedGraph[fromNode] = {};
+          if (!updatedGraph[toNode]) updatedGraph[toNode] = {};
+          updatedGraph[fromNode][toNode] = weight;
+          updatedGraph[toNode][fromNode] = weight;
+        }
+
+        return updatedGraph;
+      });
       
       // Reset edge form
       setNewEdge({
@@ -89,18 +103,58 @@ function DijkstraVisualizer() {
     try {
       const response = await axios.post('http://localhost:5000/api/dijkstra', {
         graph,
-        startNode
+        startNode,
+        isDirected
       });
-      setResult(response.data.distances);
-      setCurrentStep(1);
+      
+      // Log the full response to debug
+      console.log(response.data);
+      console.log()
+      const distances = response.data.distances;
+      const algorithmSteps = response.data.steps || [];
+
+      console.log('Distances:', distances);
+      console.log('Algorithm Steps:', algorithmSteps);
+
+      // Set both distances and steps
+      setResult(distances);
+      setSteps(algorithmSteps);
+      
+      // Always start at the first step if steps exist
+      if (algorithmSteps.length > 0) {
+        setCurrentStepIndex(0);
+      }
     } catch (error) {
       console.error('Error running Dijkstra:', error);
+      
+      // More detailed error logging
+      if (error.response) {
+        console.error('Response error:', error.response.data);
+        alert(`Error: ${error.response.data.error || 'Failed to run Dijkstra\'s algorithm'}`);
+      } else if (error.request) {
+        console.error('Request error:', error.request);
+        alert('No response received from the server');
+      } else {
+        console.error('Error:', error.message);
+        alert('Error setting up the request');
+      }
+    }
+  };
+
+  const navigateStep = (direction) => {
+    if (steps.length === 0) return;
+
+    if (direction === 'next' && currentStepIndex < steps.length - 1) {
+      setCurrentStepIndex(prev => prev + 1);
+    } else if (direction === 'prev' && currentStepIndex > 0) {
+      setCurrentStepIndex(prev => prev - 1);
     }
   };
 
   const resetVisualization = () => {
     setResult(null);
-    setCurrentStep(0);
+    setSteps([]);
+    setCurrentStepIndex(-1);
   };
 
   // Filter out existing nodes from available nodes
@@ -108,9 +162,39 @@ function DijkstraVisualizer() {
 
   return (
     <div className="container mx-auto p-4 bg-white shadow-lg rounded-lg">
-      <h2 className="text-2xl font-bold mb-4 text-gray-800">
-        Dijkstra's Algorithm Visualizer
-      </h2>
+      {/* Graph Type Toggle */}
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold text-gray-800">
+          Dijkstra's Algorithm Visualizer
+        </h2>
+        <div className="flex items-center space-x-2">
+          <span className="text-sm font-medium">Graph Type:</span>
+          <button 
+            onClick={() => {
+              // Confirm graph type change if graph is not empty
+              if (Object.keys(graph).length > 0) {
+                const confirm = window.confirm(
+                  "Changing graph type will clear the current graph. Continue?"
+                );
+                if (confirm) {
+                  setGraph({});
+                  setStartNode('');
+                  setResult(null);
+                  setSteps([]);
+                  setCurrentStepIndex(-1);
+                  setIsDirected(!isDirected);
+                }
+              } else {
+                setIsDirected(!isDirected);
+              }
+            }}
+            className="flex items-center bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 transition"
+          >
+            <SwitchHorizontalIcon className="h-5 w-5 mr-2" />
+            {isDirected ? 'Directed' : 'Undirected'}
+          </button>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Graph Visualization */}
@@ -118,7 +202,8 @@ function DijkstraVisualizer() {
           <GraphVisualization 
             graph={graph} 
             distances={result} 
-            currentStep={currentStep} 
+            currentStep={steps[currentStepIndex]} 
+            isDirected={isDirected}
           />
         </div>
 
@@ -273,10 +358,62 @@ function DijkstraVisualizer() {
             </button>
           </div>
 
-          {/* Results */}
-          {result && (
-            <div className="bg-gray-100 p-4 rounded-lg">
-              <h3 className="font-semibold mb-2">Distances from {startNode}:</h3>
+          {/* Step Navigation */}
+          {steps.length > 0 && (
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="flex justify-between items-center mb-4">
+                <button 
+                  onClick={() => navigateStep('prev')}
+                  disabled={currentStepIndex === 0}
+                  className="bg-blue-500 text-white p-2 rounded-md disabled:opacity-50"
+                >
+                  <ChevronLeftIcon className="h-5 w-5" />
+                </button>
+                <span className="text-lg font-semibold">
+                  Step {currentStepIndex + 1} of {steps.length}
+                </span>
+                <button 
+                  onClick={() => navigateStep('next')}
+                  disabled={currentStepIndex === steps.length - 1}
+                  className="bg-blue-500 text-white p-2 rounded-md disabled:opacity-50"
+                >
+                  <ChevronRightIcon className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Step Description */}
+              <div className="bg-white p-4 rounded-md shadow-sm">
+                <h3 className="font-bold mb-2">Current Step</h3>
+                <p>{steps[currentStepIndex]?.description || 'No description'}</p>
+              </div>
+
+              {/* Distances */}
+              <div className="mt-4">
+                <h3 className="font-bold mb-2">Current Distances</h3>
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th>Node</th>
+                      <th>Distance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(steps[currentStepIndex]?.distances || {}).map(([node, distance]) => (
+                      <tr key={node} className="text-center">
+                        <td>{node}</td>
+                        <td>{distance === Infinity ? '∞' : distance}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Final Results */}
+          {result && Object.keys(result).length > 0 && (
+            <div className="bg-gray-100 p-4 rounded-lg mt-4">
+              <h3 className="font-semibold mb-2">Final Distances from {startNode}:</h3>
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-200">
@@ -303,4 +440,4 @@ function DijkstraVisualizer() {
   );
 }
 
-export default DijkstraVisualizer;  
+export default DijkstraVisualizer;

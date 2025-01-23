@@ -1,25 +1,50 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from algorithms.dijkstra import dijkstra
 import heapq
 
 app = Flask(__name__)
 CORS(app)
+def replace_infinity(data):
+    """Recursively replaces `inf` with `None` or a JSON-compatible value."""
+    if isinstance(data, dict):
+        return {k: ("Infinity" if v == float('inf') else replace_infinity(v)) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [replace_infinity(item) for item in data]
+    return data
 
-def generate_dijkstra_steps(graph, start):
-    steps = []
+def dijkstra(graph, start):
     distances = {node: float('inf') for node in graph}
     distances[start] = 0
     priority_queue = [(0, start)]
-    unvisited = set(graph.keys())
+    
+    while priority_queue:
+        current_distance, current_node = heapq.heappop(priority_queue)
+
+        if current_distance > distances[current_node]:
+            continue
+
+        for neighbor, weight in graph[current_node].items():
+            distance = current_distance + weight
+            if distance < distances[neighbor]:
+                distances[neighbor] = distance
+                heapq.heappush(priority_queue, (distance, neighbor))
+    
+    return distances
+
+def generate_dijkstra_steps(graph, start):
+    distances = {node: float('inf') for node in graph}
+    distances[start] = 0
+    priority_queue = [(0, start)]
+    steps = []
     visited = set()
 
     # Initial step
     steps.append({
-        'description': 'Initialize: Set distance to start node as 0, others as infinity',
+        'description': f'Initialize: Set distance to {start} as 0, others as infinity',
+        'currentNode': start,
         'distances': distances.copy(),
         'visited': list(visited),
-        'unvisited': list(unvisited)
+        'unvisited': list(graph.keys())
     })
 
     while priority_queue:
@@ -29,18 +54,16 @@ def generate_dijkstra_steps(graph, start):
         if current_distance > distances[current_node]:
             continue
 
-        # Step: Select current node
+        visited.add(current_node)
+
+        # Step: Current node selection
         steps.append({
             'description': f'Select node {current_node} with minimum distance',
             'currentNode': current_node,
             'distances': distances.copy(),
             'visited': list(visited),
-            'unvisited': list(unvisited)
+            'unvisited': list(set(graph.keys()) - visited)
         })
-
-        # Mark as visited
-        visited.add(current_node)
-        unvisited.discard(current_node)
 
         # Examine neighbors
         for neighbor, weight in graph[current_node].items():
@@ -59,7 +82,7 @@ def generate_dijkstra_steps(graph, start):
                 'potentialDistance': potential_distance,
                 'distances': distances.copy(),
                 'visited': list(visited),
-                'unvisited': list(unvisited)
+                'unvisited': list(set(graph.keys()) - visited)
             })
 
             # Update distance if shorter path found
@@ -67,7 +90,7 @@ def generate_dijkstra_steps(graph, start):
                 distances[neighbor] = potential_distance
                 heapq.heappush(priority_queue, (potential_distance, neighbor))
 
-                # Step: Update distance
+                # Step: Distance update
                 steps.append({
                     'description': f'Update distance to {neighbor}: {potential_distance}',
                     'currentNode': current_node,
@@ -75,8 +98,16 @@ def generate_dijkstra_steps(graph, start):
                     'newDistance': potential_distance,
                     'distances': distances.copy(),
                     'visited': list(visited),
-                    'unvisited': list(unvisited)
+                    'unvisited': list(set(graph.keys()) - visited)
                 })
+
+    # Final step
+    steps.append({
+        'description': 'Algorithm completed',
+        'distances': distances.copy(),
+        'visited': list(visited),
+        'unvisited': []
+    })
 
     return steps
 
@@ -85,31 +116,31 @@ def run_dijkstra():
     data = request.json
     graph = data.get('graph')
     start_node = data.get('startNode')
-    
-    # Validate input
-    if not graph:
-        return jsonify({'error': 'Graph is empty'}), 400
-    
-    if not start_node:
-        return jsonify({'error': 'Start node not specified'}), 400
-    
-    if start_node not in graph:
-        return jsonify({'error': f'Start node {start_node} not in graph'}), 400
+    is_directed = data.get('isDirected', True)
     
     try:
-        
-        # Run Dijkstra's algorithm
-        result = dijkstra(graph, start_node)
+        # If undirected, convert to directed graph
+        if not is_directed:
+            undirected_graph = graph.copy()
+            for node, neighbors in graph.items():
+                for neighbor, weight in neighbors.items():
+                    if neighbor not in undirected_graph:
+                        undirected_graph[neighbor] = {}
+                    undirected_graph[neighbor][node] = weight
+            graph = undirected_graph
+
+        # Calculate distances
+        distances = dijkstra(graph, start_node)
         
         # Generate steps
         steps = generate_dijkstra_steps(graph, start_node)
-        
         return jsonify({
-            'distances': result
+            'distances': replace_infinity(distances),
+            'steps': replace_infinity(steps)
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 400
-
+    
 @app.route('/api/algorithms', methods=['GET'])
 def get_algorithms():
     algorithms = [

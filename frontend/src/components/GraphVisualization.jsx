@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 
-function GraphVisualization({ graph, distances, currentStep }) {
+function GraphVisualization({ graph, distances, currentStep, isDirected }) {
   const svgRef = useRef(null);
 
   useEffect(() => {
@@ -27,11 +27,48 @@ function GraphVisualization({ graph, distances, currentStep }) {
       });
     });
 
+    // Create arrowhead marker for directed graphs
+    const defs = svg.append('defs');
+    
+    defs.append('marker')
+      .attr('id', 'arrowhead')
+      .attr('viewBox', '-0 -5 10 10')
+      .attr('refX', 20)
+      .attr('refY', 0)
+      .attr('orient', 'auto')
+      .attr('markerWidth', 6)
+      .attr('markerHeight', 6)
+      .attr('markerUnits', 'strokeWidth')
+      .append('path')
+      .attr('d', 'M 0,-5 L 10 ,0 L 0,5')
+      .attr('fill', '#999');
+
     // Force simulation
     const simulation = d3.forceSimulation(nodes)
-      .force('link', d3.forceLink(links).id(d => d.id).distance(150))
+      .force('link', d3.forceLink(links)
+        .id(d => d.id)
+        .distance(150)
+      )
       .force('charge', d3.forceManyBody().strength(-300))
       .force('center', d3.forceCenter(width / 2, height / 2));
+
+    // Determine highlighted nodes from current step
+    const highlightedNodes = new Set();
+    const visitedNodes = new Set();
+    
+    if (currentStep) {
+      if (currentStep.currentNode) {
+        highlightedNodes.add(currentStep.currentNode);
+      }
+      if (currentStep.neighbor) {
+        highlightedNodes.add(currentStep.neighbor);
+      }
+      
+      // Add visited nodes
+      if (currentStep.visited) {
+        currentStep.visited.forEach(node => visitedNodes.add(node));
+      }
+    }
 
     // Create links
     const link = svg.append('g')
@@ -39,9 +76,18 @@ function GraphVisualization({ graph, distances, currentStep }) {
       .data(links)
       .enter()
       .append('line')
-      .attr('stroke', '#999')
+      .attr('stroke', d => {
+        // Highlight links involved in current step
+        if (currentStep && 
+            (d.source.id === currentStep.currentNode || 
+             d.source.id === currentStep.neighbor)) {
+          return 'orange';
+        }
+        return '#999';
+      })
       .attr('stroke-opacity', 0.6)
-      .attr('stroke-width', 2);
+      .attr('stroke-width', 2)
+      .attr('marker-end', isDirected ? 'url(#arrowhead)' : null);
 
     // Create edge weight labels
     const edgeLabels = svg.append('g')
@@ -62,12 +108,22 @@ function GraphVisualization({ graph, distances, currentStep }) {
       .append('circle')
       .attr('r', 20)
       .attr('fill', d => {
+        // Highlight current step nodes
+        if (highlightedNodes.has(d.id)) return 'orange';
+        
+        // Highlight visited nodes
+        if (visitedNodes.has(d.id)) return 'lightgreen';
+        
+        // Color based on distances
         if (distances && distances[d.id] !== undefined) {
-          return distances[d.id] === Infinity ? 'lightcoral' : 'lightgreen';
+          return distances[d.id] === Infinity ? 'lightcoral' : 'lightskyblue';
         }
         return 'lightskyblue';
       })
-      .attr('stroke', 'white')
+      .attr('stroke', d => {
+        if (highlightedNodes.has(d.id)) return 'red';
+        return 'white';
+      })
       .attr('stroke-width', 3)
       .call(d3.drag()
         .on('start', dragstarted)
@@ -82,8 +138,10 @@ function GraphVisualization({ graph, distances, currentStep }) {
       .append('text')
       .text(d => {
         let label = d.id;
-        if (distances && distances[d.id] !== undefined) {
-          label += ` (${distances[d.id] === Infinity ? '∞' : distances[d.id]})`;
+        // Add distance if available
+        if (currentStep && currentStep.distances) {
+          const distance = currentStep.distances[d.id];
+          label += ` (${distance === Infinity ? '∞' : distance})`;
         }
         return label;
       })
@@ -92,7 +150,7 @@ function GraphVisualization({ graph, distances, currentStep }) {
       .attr('dy', 4)
       .attr('font-weight', 'bold');
 
-    // Update positions
+    // Update positions on each tick
     simulation.on('tick', () => {
       link
         .attr('x1', d => d.source.x)
@@ -133,7 +191,7 @@ function GraphVisualization({ graph, distances, currentStep }) {
     }
 
     return () => simulation.stop();
-  }, [graph, distances, currentStep]);
+  }, [graph, distances, currentStep, isDirected]);
 
   return (
     <div className="w-full h-96 bg-gray-50 rounded-lg overflow-hidden">
