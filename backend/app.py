@@ -5,6 +5,7 @@ import os
 from algorithms.dijkstra import dijkstra,generate_dijkstra_steps
 from algorithms.avl_tree import *
 app = Flask(__name__)
+
 CORS(app)
 def replace_infinity(data):
     """Recursively replaces `inf` with `None` or a JSON-compatible value."""

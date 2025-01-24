@@ -7,7 +7,7 @@ function AlgorithmSelector({ onSelect }) {
   useEffect(() => {
     const fetchAlgorithms = async () => {
       try {
-        const response = await axios.get('http://localhost:5000/api/algorithms');
+        const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/algorithms`);
         setAlgorithms(response.data);
       } catch (error) {
         console.error('Error fetching algorithms:', error);
