@@ -6,7 +6,8 @@ from algorithms.dijkstra import dijkstra,generate_dijkstra_steps
 from algorithms.avl_tree import *
 app = Flask(__name__)
 
-CORS(app)
+CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "https://<frontend-production-url>"]}})
+
 def replace_infinity(data):
     """Recursively replaces `inf` with `None` or a JSON-compatible value."""
     if isinstance(data, dict):
@@ -69,4 +70,5 @@ def get_algorithms():
     return jsonify(algorithms)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0',debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
