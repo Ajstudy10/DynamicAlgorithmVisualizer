@@ -6,7 +6,7 @@ from algorithms.dijkstra import dijkstra,generate_dijkstra_steps
 from algorithms.avl_tree import *
 app = Flask(__name__)
 
-CORS(app, resources={r"/*": {"origins": ["http://localhost:4173", "https://joyful-enthusiasm-production.up.railway.app"]}}, supports_credentials=True)
+CORS(app)
 
 
 def replace_infinity(data):
