@@ -8,7 +8,7 @@
     "build": "vite build",
     "start": "vite preview --port 5173",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview --host 0.0.0.0 --port $PORT"
   },
   "dependencies": {
     "@heroicons/react": "^1.0.5",
