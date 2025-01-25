@@ -1,29 +1,23 @@
-# Use a Node.js image to build the application
-FROM node:18 AS build
+# Use Node.js as the base image
+FROM node:18
 
-# Set the working directory inside the container
+# Set the working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json to the container
+# Copy package.json and package-lock.json
 COPY package*.json ./
 
-# Install only production dependencies
-RUN npm install 
+# Install dependencies
+RUN npm install --omit=dev
 
-# Copy the rest of the application files
+# Copy the rest of the application code
 COPY . .
 
-# Build the application for production
+# Build the application
 RUN npm run build
 
-# Use a lightweight web server to serve the built files
-FROM nginx:alpine
+# Expose the port that Vite will serve on
+EXPOSE 4173
 
-# Copy the built files to the Nginx web server's directory
-COPY --from=build /app/dist /usr/share/nginx/html
-
-# Expose port 80 for the web server
-EXPOSE 80
-
-# Start Nginx when the container runs
-CMD ["nginx", "-g", "daemon off;"]
+# Run Vite's preview mode
+CMD ["npm", "run", "preview"]
