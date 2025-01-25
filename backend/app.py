@@ -9,7 +9,6 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "https://joyful-enthusiasm-production.up.railway.app"]}})
 
 def replace_infinity(data):
-    """Recursively replaces `inf` with `None` or a JSON-compatible value."""
     if isinstance(data, dict):
         return {k: ("Infinity" if v == float('inf') else replace_infinity(v)) for k, v in data.items()}
     elif isinstance(data, list):
