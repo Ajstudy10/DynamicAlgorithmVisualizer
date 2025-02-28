@@ -8,9 +8,11 @@ function AlgorithmSelector({ onSelect }) {
     const fetchAlgorithms = async () => {
       try {
         const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/algorithms`);
-        setAlgorithms(response.data);
+        console.log("API Response:", response.data);
+        setAlgorithms(Array.isArray(response.data) ? response.data : []);
       } catch (error) {
         console.error('Error fetching algorithms:', error);
+        setAlgorithms([]);
       }
     };
 
@@ -21,11 +23,15 @@ function AlgorithmSelector({ onSelect }) {
     <div>
       <select onChange={(e) => onSelect(e.target.value)}>
         <option value="">Select an Algorithm</option>
-        {algorithms.map(algo => (
-          <option key={algo.id} value={algo.id}>
-            {algo.name}
-          </option>
-        ))}
+        {algorithms.length > 0 ? (
+          algorithms.map(algo => (
+            <option key={algo.id} value={algo.id}>
+              {algo.name}
+            </option>
+          ))
+        ) : (
+          <option disabled>Loading algorithms...</option>
+        )}
       </select>
     </div>
   );
